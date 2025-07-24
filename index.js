@@ -32,7 +32,7 @@ async function fetchIpInfo(ip) {
 }
 
 io.on("connection", async (socket) => {
-    if (socket.handshake.query.isAdmin) {
+    if (socket.handshake.query.isAdmin === "true") {
         return;
     }
 
