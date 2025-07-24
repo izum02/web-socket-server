@@ -20,21 +20,33 @@ function isPrivateIP(ip) {
 }
 
 async function fetchIpInfo(ip) {
-  try {
-    const res = await fetch(`https://ipinfo.io/${ip}/json`);
-    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-    const data = await res.json();
-    return data;
-  } catch (e) {
-    console.error("IP情報取得失敗:", e);
-    return null;
-  }
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+        
+        const res = await fetch(`https://ipinfo.io/${ip}/json`, {
+            signal: controller.signal,
+        });
+        
+        clearTimeout(timeout);
+        
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        return await res.json();
+    } catch (e) {
+        if (e.name === 'AbortError') {
+            console.error("IP info fetch timed out for IP:", ip);
+        } else {
+            console.error("IP info fetch failed:", e);
+        }
+        return null;
+    }
 }
 
 io.on("connection", async (socket) => {
-    if (socket.handshake.query.isAdmin === "true") {
-        return;
-    }
+  if (socket.handshake.query.isAdmin === "true") {
+      return;
+  }
+  console.log(`New connection from ${socket.id}, isAdmin: ${socket.handshake.query.isAdmin}`);
 
   activeUsers++;
 
