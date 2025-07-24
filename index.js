@@ -1,5 +1,8 @@
 const { Server } = require("socket.io");
 
+// Node.js 18+ならfetchは標準搭載なので追加不要
+// それ以前はnpmで node-fetch を入れてください
+
 const port = process.env.PORT || 3000;
 const io = new Server(port, {
   cors: {
@@ -10,20 +13,46 @@ const io = new Server(port, {
 let activeUsers = 0;
 const userSessions = {};
 
-io.on("connection", (socket) => {
+async function fetchIpInfo(ip) {
+  try {
+    const res = await fetch(`https://ipinfo.io/${ip}/json`);
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    const data = await res.json();
+    return data;
+  } catch (e) {
+    console.error("IP情報取得失敗:", e);
+    return null;
+  }
+}
+
+io.on("connection", async (socket) => {
   activeUsers++;
 
   const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
   const connectTime = new Date();
 
+  // 初期情報セット
   userSessions[socket.id] = {
     ip,
     connectTime,
     disconnectTime: null,
+    loc: null,
+    city: null,
+    region: null,
+    country: null,
   };
 
+  // IP情報取得（非同期）
+  const ipInfo = await fetchIpInfo(ip);
+  if (ipInfo) {
+    userSessions[socket.id].loc = ipInfo.loc || null;
+    userSessions[socket.id].city = ipInfo.city || null;
+    userSessions[socket.id].region = ipInfo.region || null;
+    userSessions[socket.id].country = ipInfo.country || null;
+  }
+
   io.emit("updateUserCount", activeUsers);
-  io.emit("userSessionsUpdate", userSessions); // ここで全クライアントに送る
+  io.emit("userSessionsUpdate", userSessions);
 
   socket.on("disconnect", () => {
     activeUsers--;
@@ -34,9 +63,8 @@ io.on("connection", (socket) => {
     }
 
     io.emit("updateUserCount", activeUsers);
-    io.emit("userSessionsUpdate", userSessions); // 更新を通知
+    io.emit("userSessionsUpdate", userSessions);
 
-    // 必要ならセッションを残すか削除するか判断
-    // 今回は残しておく例です
+    // 残すか削除するかは用途により調整
   });
 });
