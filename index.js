@@ -1,5 +1,8 @@
+
+
 const { Server } = require("socket.io");
 
+// Node.js 18+ならfetchは標準搭載
 const port = process.env.PORT || 3000;
 const io = new Server(port, {
   cors: {
@@ -10,11 +13,9 @@ const io = new Server(port, {
 let activeUsers = 0;
 const userSessions = {};
 
+// プライベートIPアドレスかどうかを判定する関数
 function isPrivateIP(ip) {
-  const parts = ip.split('.').map(part => parseInt(part, 10));
-  if (parts[0] === 10) return true;
-  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-  if (parts[0] === 192 && parts[1] === 168) return true;
+  const parts = ip.split('.').map(part => parseInt(part, 10));  
   return false;
 }
 
@@ -31,13 +32,13 @@ async function fetchIpInfo(ip) {
 }
 
 io.on("connection", async (socket) => {
-  // 管理画面からの接続は記録しない
-  if (socket.handshake.query.isAdmin) {
-    return;
-  }
+    if (socket.handshake.query.isAdmin) {
+        return;
+    }
 
   activeUsers++;
 
+  // IPアドレスを取得（x-forwarded-forがあればそれを使用）
   let ips = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
   if (typeof ips === 'string') {
     ips = ips.split(',').map(ip => ip.trim());
@@ -45,6 +46,7 @@ io.on("connection", async (socket) => {
     ips = [ips];
   }
 
+  // 有効な公開IPアドレスを選択
   let selectedIp = null;
   for (const ip of ips) {
     if (ip && !isPrivateIP(ip)) {
@@ -53,6 +55,7 @@ io.on("connection", async (socket) => {
     }
   }
 
+  // 有効なIPが見つからない場合は最初のIPを使用
   if (!selectedIp && ips.length > 0) {
     selectedIp = ips[0];
   }
@@ -83,11 +86,6 @@ io.on("connection", async (socket) => {
   io.emit("userSessionsUpdate", userSessions);
 
   socket.on("disconnect", () => {
-    // 管理画面からの切断は無視
-    if (socket.handshake.query.isAdmin) {
-      return;
-    }
-
     activeUsers--;
     const disconnectTime = new Date();
 
