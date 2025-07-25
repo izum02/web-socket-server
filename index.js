@@ -52,6 +52,13 @@ async function fetchIpInfo(ip) {
 
 io.on("connection", async (socket) => {
   if (socket.handshake.query.isAdmin === "true") {
+    // 管理画面接続時に過去履歴を送信
+    socket.emit("userSessionHistory", userSessionHistory);
+
+    // 現在の接続数と現在のセッションも送信
+    socket.emit("updateUserCount", activeUsers);
+    socket.emit("userSessionsUpdate", userSessions);
+
     return;
   }
 
@@ -71,6 +78,7 @@ io.on("connection", async (socket) => {
   const connectTime = new Date();
 
   userSessions[socket.id] = {
+    socketId: socket.id,
     ip: ipString, // 全部のIPアドレス
     connectTime,
     disconnectTime: null,
@@ -105,7 +113,7 @@ io.on("connection", async (socket) => {
       // 履歴にも保存
       userSessionHistory.push({ ...userSessions[socket.id] });
 
-      // ※ 現在のセッション情報も保持するので削除しません（形式を維持）
+      // ※ 現在のセッションは保持しておく
     }
 
     io.emit("updateUserCount", activeUsers);
